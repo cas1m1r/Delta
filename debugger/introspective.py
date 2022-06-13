@@ -1,9 +1,11 @@
 from ctypes import *
 import subprocess
+import stackscope
 import sys
 import os
 
 breakpoints = []
+
 
 # Check OS
 if os.name == 'nt':
@@ -33,8 +35,8 @@ def load_syscalls():
 	return SYSCALLS
 
 # Load libraries
-if not os.path.isfile('poker.so') and os.path.isfile('utility/deltalib.c'):
-	os.system('gcc -shared -fPIC utility/deltalib.c -o poker.so')
+if not os.path.isfile('poker.so') and os.path.isfile('deltalib.c'):
+	os.system('gcc -shared -fPIC deltalib.c -o poker.so')
 
 tracelib = cdll.LoadLibrary('./poker.so')
 syscalls = load_syscalls()
@@ -56,17 +58,23 @@ def launch_program(program_file):
 		for extra_arg in sys.argv:
 			args.append(extra_arg)
 	return subprocess.Popen(args)
-	
+
+def restart_process(pid):
+	os.system(f'kill -RESTART {pid}')
+	return
 
 def check_args():
+	args = b'Testing123!'
 	if len(sys.argv) < 2:
 		print(f'Usage: {sys.argv[0]} [program]')
 		exit(1)
 	else:
 		if not os.path.isfile(sys.argv[1]):
-			print(f'[!] unable to find {sys,argv[1]}')
+			print(f'[!] unable to find {sys.argv[1]}')
 			exit(1)
-		return sys.argv[1]
+		if len(sys.argv) > 2:
+			args = bytes(sys.argv[2],'utf-8')
+		return sys.argv[1], args
 
 
 def step_through_syscall(pid):
@@ -74,7 +82,6 @@ def step_through_syscall(pid):
 	N = tracelib.show_syscall_args(pid)
 	if N in syscalls.keys():
 		EBX = tracelib.get_rbx(pid)
-		
 		msg = f'{syscalls[N]["name"]}({EBX},{syscalls[N]["ecx"]}'
 		msg += f'{syscalls[N]["edx"]},{syscalls[N]["edx"]},{syscalls[N]["esx"]}'
 		msg += syscalls[N]["edi"].replace("\n","")
@@ -84,6 +91,11 @@ def step_through_syscall(pid):
 		print(f'\033[1m = \033[31m[{msg}]\033[0m')
 	tracelib.process_syscall(pid)
 	tracelib.last_syscall_result(pid)
+	# check for laststack.txt, if exists process it 
+	# now replace it with new stack
+	# stackscope.check_stack_for_changes(pid)
+	# check for any interesting differences
+
 
 def read_process_memory(pid):
 	address = int(input('\tEnter Offset to Read: '), 16)
@@ -103,31 +115,18 @@ def show_help(pid):
 	print('- [registers] Dump')
 	print('- [next] Step through to next syscall')
 	print('- [read-mem] Read memory at address')
-	print('- [heap-view] Try to read heap memory')
+	print('- [stack-view] Try to read stack memory')
 	print('- [add-break] Add breakpoint at hex address')
+	print('- [restart] End process and restart it')
 	print('- [help] Show this menue')
 	print('- [q] Quit')
 	print('======================================')
 
-def explore_heap(pid):
+def explore_stack(pid):
 	pid = int(input('(re-enter pid):'))
 	# try to be root maybe? 
-	if not os.path.isdir(f'/proc/{pid}'):
-		print(f'[!] unable to find /proc/{pid}')
-		if os.getuid() != 0: print('\033[2mAre you running as root?\033[0m')
-		exit(1)
-	# open map file
-	mapfile = f'/proc/{pid}/maps'
-	heap_range = []
-	os.system(f'echo $(cat {mapfile} | grep heap | cut -d "-" -f 1) | >> cmd.txt')
-	heap_range.append(swap('cmd.txt',True).pop().split(' ')[0])
-	os.system(f'echo $(cat {mapfile} | grep heap | cut -d "-" -f 1) | >> cmd.txt')
-	heap_range.append(swap('cmd.txt',True).pop().split(' ')[0])
-	# find location of heap in mapfile
-	heap_start = int(heap_range[0], 16)
-	heap_stops = int(heap_range[1], 16)
-	print(f'[Δ::info] Heap is at {hex(heap_start)}, {hex(heap_stops)}')
-	# find location of stacl
+	os.system('python3 seeker.py %d > result.txt' % pid)
+	print(open('result.txt','r').read())
 
 
 def modify_heap(pid, offset):
@@ -139,8 +138,9 @@ def main():
 	newpid = os.fork()
 	# check args
 	target_program = Command()
-	target_program.file = bytes(check_args(),'ascii')
-	target_program.args = b''
+	program, args = check_args()
+	target_program.file = bytes(program,'ascii')
+	target_program.args = args
 	N = 0
 	first = True
 	
@@ -149,9 +149,10 @@ def main():
 				  'registers': tracelib.show_registers,
 				  'next': step_through_syscall,
 				  'help': show_help,
-				  'heap-view': explore_heap,
+				  'stack-view': explore_stack,
 				  'add-break': add_break_point,
 				  'read-mem': read_process_memory,
+				  'restart': restart_process,
 				  'q': exit,'quit': exit}
 
 	# Run Delta-Shell
@@ -190,16 +191,7 @@ def main():
 				if breakpt == hex(RSP):
 					print(f'[Δ:: Hit Breakpoint {hex(RSP)}]')
 					tracelib.pause_pid(newpid)
-			# # Get Next System Call 
-			# tracelib.enter_syscall(newpid)
-			# # Show registers 
-			# tracelib.show_registers(newpid)
-			# # Dispaly Syscall Args explicitly
-			# tracelib.show_syscall_args(newpid)
-			# # pass off syscall control 
-			# tracelib.process_syscall(newpid)
-			# # check result of the
-			# tracelib.last_syscall_result(newpid)	
+			
 
 
 if __name__ == '__main__':
