@@ -92,7 +92,11 @@ void pause_pid(int pid){
 
 void launch_program(const struct PyStruct* s){
 	printf("Δ::Launching->%s\n", s->file);
-	execvp(s->file, s->argv); // I hope this works
+	const char * argv[3];
+	argv[0] = s->file;
+	argv[1] = s->argv;
+	argv[2] = NULL;
+	execvp(s->file, argv); // I hope this works
  	ERR("%s", strerror(errno));
 }
 
