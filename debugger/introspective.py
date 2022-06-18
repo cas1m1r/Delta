@@ -70,10 +70,10 @@ def check_args():
 		exit(1)
 	else:
 		if not os.path.isfile(sys.argv[1]):
-			print(f'[!] unable to find {sys.argv[1]}')
+			print(f'[!] unable to find {sys,argv[1]}')
 			exit(1)
 		if len(sys.argv) > 2:
-			args = bytes(sys.argv[2],'utf-8')
+			args = bytes(argv[1])
 		return sys.argv[1], args
 
 
@@ -93,7 +93,7 @@ def step_through_syscall(pid):
 	tracelib.last_syscall_result(pid)
 	# check for laststack.txt, if exists process it 
 	# now replace it with new stack
-	# stackscope.check_stack_for_changes(pid)
+	stackscope.check_stack_for_changes(pid)
 	# check for any interesting differences
 
 
@@ -125,8 +125,7 @@ def show_help(pid):
 def explore_stack(pid):
 	pid = int(input('(re-enter pid):'))
 	# try to be root maybe? 
-	os.system('python3 seeker.py %d > result.txt' % pid)
-	print(open('result.txt','r').read())
+	os.system(f'gnome-terminal -- sh -c "bash ./follow.sh {pid}"')
 
 
 def modify_heap(pid, offset):
