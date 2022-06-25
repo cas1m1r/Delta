@@ -1,6 +1,5 @@
 from ctypes import *
 import subprocess
-import stackscope
 import sys
 import os
 
