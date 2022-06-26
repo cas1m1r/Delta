@@ -1,3 +1,4 @@
+from mechanic import *
 from ctypes import *
 import subprocess
 import sys
@@ -18,7 +19,6 @@ def load_syscalls():
 	SYSCALLS = {}
 	for line in open('utility/syscalls.txt','r').readlines():
 		fields = line.split('\t')
-		
 		name = fields[1]
 		source = fields[2]
 		ebx_val = fields[3]
@@ -69,7 +69,7 @@ def check_args():
 		exit(1)
 	else:
 		if not os.path.isfile(sys.argv[1]):
-			print(f'[!] unable to find {sys,argv[1]}')
+			print(f'[!] unable to find {sys.argv[1]}')
 			exit(1)
 		if len(sys.argv) > 2:
 			args = bytes(argv[1])
@@ -82,9 +82,8 @@ def step_through_syscall(pid):
 	if N in syscalls.keys():
 		EBX = tracelib.get_rbx(pid)
 		msg = f'{syscalls[N]["name"]}({EBX},{syscalls[N]["ecx"]}'
-		msg += f'{syscalls[N]["edx"]},{syscalls[N]["edx"]},{syscalls[N]["esx"]}'
-		msg += syscalls[N]["edi"].replace("\n","")
-		msg += ')'
+		msg +=f'{syscalls[N]["edx"]},{syscalls[N]["edx"]},{syscalls[N]["esx"]}'
+		msg += syscalls[N]["edi"].replace("\n","") + ')'
 		# testing: 
 		print()
 		print(f'\033[1m = \033[31m[{msg}]\033[0m')
@@ -106,6 +105,19 @@ def add_break_point(pid):
 	breakpoints.append(int(input('Enter Address:'),16))
 	print(f'Breakpoints: {breakpoints}')
 
+def dump_strings(pid):
+	target = sys.argv[1].split('/')[-1]
+	strings_found = explore_strings(target)
+	print(f'[+] {len(strings_found)} in {target}')
+	for i in range(len(strings_found)):
+		print(f'  [{i}] {strings_found[i]}')
+	return strings_found
+
+def disassembly(pid):
+	target = sys.argv[1].split('/')[-1]
+	disass = disassemble(target)
+	print(f'[+] {len(disass.keys())} instructions disassembled from {target}')
+	return disass
 
 def show_help(pid):
 	print('======== :: Δ HELP MENU Δ :: ======== ')
@@ -115,9 +127,11 @@ def show_help(pid):
 	print('- [next] Step through to next syscall')
 	print('- [read-mem] Read memory at address')
 	print('- [stack-view] Try to read stack memory')
+	print('- [strings] dump strings found in binary')
+	print('- [objdump] provides crude disassembly of binary')
 	print('- [add-break] Add breakpoint at hex address')
 	print('- [restart] End process and restart it')
-	print('- [help] Show this menue')
+	print('- [help] Show this menu')
 	print('- [q] Quit')
 	print('======================================')
 
@@ -130,6 +144,8 @@ def explore_stack(pid):
 def modify_heap(pid, offset):
 	# open memfile 
 	memfile = f'/proc/{pid}/mem'
+
+
 
 
 def main():
@@ -150,6 +166,8 @@ def main():
 				  'stack-view': explore_stack,
 				  'add-break': add_break_point,
 				  'read-mem': read_process_memory,
+				  'strings': dump_strings,
+				  'objdump': disassembly,
 				  'restart': restart_process,
 				  'q': exit,'quit': exit}
 
