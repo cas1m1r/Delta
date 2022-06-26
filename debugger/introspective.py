@@ -92,7 +92,7 @@ def step_through_syscall(pid):
 	tracelib.last_syscall_result(pid)
 	# check for laststack.txt, if exists process it 
 	# now replace it with new stack
-	stackscope.check_stack_for_changes(pid)
+	# stackscope.check_stack_for_changes(pid)
 	# check for any interesting differences
 
 
