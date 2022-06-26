@@ -8,3 +8,4 @@ process hacking in pwntools into one place.
 It might not work at all, or it might be super cool. Either way I am learning a lot about linux internals, assembly and how 
 computers actually work so it's worth it.    
 
+![usage](https://raw.githubusercontent.com/cas1m1r/Delta/master/delta_usage.png)
