@@ -19,6 +19,7 @@ def load_syscalls():
 	SYSCALLS = {}
 	for line in open('utility/syscalls.txt','r').readlines():
 		fields = line.split('\t')
+		
 		name = fields[1]
 		source = fields[2]
 		ebx_val = fields[3]
@@ -69,11 +70,12 @@ def check_args():
 		exit(1)
 	else:
 		if not os.path.isfile(sys.argv[1]):
-			print(f'[!] unable to find {sys.argv[1]}')
+			print(f'[!] unable to find {sys,argv[1]}')
 			exit(1)
 		if len(sys.argv) > 2:
-			args = bytes(argv[1])
+			args = sys.argv[2]
 		return sys.argv[1], args
+
 
 def step_through_syscall(pid):
 	tracelib.enter_syscall(pid)
@@ -81,54 +83,18 @@ def step_through_syscall(pid):
 	if N in syscalls.keys():
 		EBX = tracelib.get_rbx(pid)
 		msg = f'{syscalls[N]["name"]}({EBX},{syscalls[N]["ecx"]}'
-		msg +=f'{syscalls[N]["edx"]},{syscalls[N]["edx"]},{syscalls[N]["esx"]}'
-		msg += syscalls[N]["edi"].replace("\n","") + ')'
+		msg += f'{syscalls[N]["edx"]},{syscalls[N]["edx"]},{syscalls[N]["esx"]}'
+		msg += syscalls[N]["edi"].replace("\n","")
+		msg += ')'
 		# testing: 
 		print()
 		print(f'\033[1m = \033[31m[{msg}]\033[0m')
 	tracelib.process_syscall(pid)
 	tracelib.last_syscall_result(pid)
-
-def read_registers(pid):
-	registers = {'RAX':tracelib.get_rax(pid),
-				 'RBX':tracelib.get_rbx(pid),
-				 'RCX':tracelib.get_rcx(pid),
-				 'RDX':tracelib.get_rdx(pid),
-				 'RIP':tracelib.get_rip(pid),
-				 'RSI':tracelib.get_rsi(pid),
-				 'RBP':tracelib.get_rbp(pid),
-				 'RSP':tracelib.get_rsp(pid)}
-	return registers
-
-def show_registers(pid):
-	banner = '='*20
-	row = ''
-	col = 1
-	registers = read_registers(pid)
-	for reg in registers.keys():
-		row += f'| {reg}:  {"{0:#0{1}x}".format(registers[reg],12)}  '
-		if col % 3 == 0:
-			row += '|\n'
-		col +=1
-	print(f'{banner}| REGISTERS |{banner}')
-	print(f'{row}')
-
-def diff_registers(state1, state2):
-	banner = '='*30
-	row = ''
-	col = 1
-	diffs = {}
-	for reg in list(state1.keys()):
-		if state1[reg] != state2[reg]:
-			value = "{0:#0{1}x}".format(state2[reg],12)
-			row += f'| {reg}:  \033[1m\033[31m{value}  \033[0m'
-		else:
-			row += f'| {reg}:  {"{0:#0{1}x}".format(state2[reg],12)}  '
-		if col % 3 == 0:
-			row += '|\n'
-		col +=1
-	print(f'{banner}| REGISTERS |{banner}')
-	print(f'{row}')
+	# check for laststack.txt, if exists process it 
+	# now replace it with new stack
+	# stackscope.check_stack_for_changes(pid)
+	# check for any interesting differences
 
 
 def read_process_memory(pid):
@@ -136,90 +102,42 @@ def read_process_memory(pid):
 	print(f'Trying to read 0x{hex(address)}')
 	tracelib.read_data_from_memory(address)
 
+
 def add_break_point(pid):
 	breakpoints.append(int(input('Enter Address:'),16))
 	print(f'Breakpoints: {breakpoints}')
 
-def dump_strings(pid):
-	target = sys.argv[1].split('/')[-1]
-	strings_found = explore_strings(target)
-	print(f'[+] {len(strings_found)} in {target}')
-	for i in range(len(strings_found)):
-		print(f'  [{i}] {strings_found[i]}')
-	return strings_found
-
-def disassembly(pid):
-	target = sys.argv[1].split('/')[-1]
-	disass = disassemble(target)
-	print(f'[+] {len(disass.keys())} instructions disassembled from {target}')
-	return disass
 
 def show_help(pid):
 	print('======== :: Δ HELP MENU Δ :: ======== ')
 	print('- [c] Continues through rest of program')
 	print('- [stepi] Single Step to next instruction')
-	print('- [firecracler] run each instruction in the program one by one')
 	print('- [registers] Dump')
 	print('- [next] Step through to next syscall')
 	print('- [read-mem] Read memory at address')
 	print('- [stack-view] Try to read stack memory')
-	print('- [strings] dump strings found in binary')
-	print('- [objdump] provides crude disassembly of binary')
 	print('- [add-break] Add breakpoint at hex address')
 	print('- [restart] End process and restart it')
-	print('- [help] Show this menu')
+	print('- [help] Show this menue')
 	print('- [q] Quit')
 	print('======================================')
 
 def explore_stack(pid):
 	pid = int(input('(re-enter pid):'))
 	# try to be root maybe? 
-	os.system(f'gnome-terminal -- sh -c "bash ./follow.sh {pid}"')
+	os.system('python3 seeker.py %d > result.txt' % pid)
+	print(open('result.txt','r').read())
+
 
 def modify_heap(pid, offset):
 	# open memfile 
 	memfile = f'/proc/{pid}/mem'
 
-def auto_step(pid):
-	stepping = True
-	last_registers = read_registers(pid)
-	try:
-		while stepping:
-			current_regs = read_registers(pid)
-			diff_registers(last_registers, current_regs)
-			last_registers = current_regs
-			stepping = tracelib.step(pid)
-
-	except KeyboardInterrupt:
-		stepping = False
-		pass
-
-def main():
+def run_debugger(operations, objdump, target_program):
 	newpid = os.fork()
-	# check args
-	target_program = Command()
-	program, args = check_args()
-	target_program.file = bytes(program,'ascii')
-	target_program.args = args
 	N = 0
 	first = True
-	################ DEFINE DEBUGGER OPERATIONS ################ 
-	operations = {'c': tracelib.continue_pid,
-				  'continue':tracelib.continue_pid,
-				  'stepi': tracelib.step,
-				  'registers': tracelib.show_registers,
-				  'next': step_through_syscall,
-				  'help': show_help,
-				  'stack-view': explore_stack,
-				  'add-break': add_break_point,
-				  'read-mem': read_process_memory,
-				  'strings': dump_strings,
-				  'objdump': disassembly,
-				  'restart': restart_process,
-				  'firecracker': auto_step,
-				  'q': exit,'quit': exit}
-
-	################ << Δ Run Delta-Shell Δ >> ################ 
+	# Run Delta-Shell
 	while True:
 		if newpid == 0:
 			# execute program to examine
@@ -227,37 +145,59 @@ def main():
 				print('='*80)
 				tracelib.zero_ptrace()
 				debugee = tracelib.launch_program(byref(target_program))
+				# Test it works 
+				print('Initial Registers:')
+				tracelib.show_registers(debugee)
+				print('='*80)
 				first = False
-		# In parent
+
 		elif newpid != -1:
 			# Need to halt program for letting user choose what happens next
 			if first:
-				# so wait for child to start 
+				# in parent, so wait for pid, 
 				tracelib.wait_up(newpid)
 				first = False
 				tracelib.pause_pid(newpid)
-				print(f'[Δ] DEBUGEE PID:')
-				cmd = f'echo $(pidof {target_program.file[2:].decode()})'
-				query = subprocess.Popen(['/bin/sh','-c',cmd])
+				print(f'[Δ] PID:')
+				query = subprocess.Popen(['/bin/sh','-c',f'echo $(pidof {target_program.file[2:].decode()})'])
 				debugee = int(query.wait(3))
 				print(f'[Δ] Pausing {target_program.file} for user control')
-			
-			# Check if rsp matches any breakpoints!
-			RSP = tracelib.get_rsp(newpid)
-			# TODO: Debugging the debugger breakpoint feature
-			print(f'[DEBUG] RSP: {hex(RSP)}')
-			for breakpt in breakpoints:
-				if breakpt == hex(RSP):
-					print(f'[Δ:: Hit Breakpoint {hex(RSP)}]')
-					tracelib.pause_pid(newpid)
-
-			################ Δ Process User Input Δ ################ 
 			command = str(input('\033[1mΔ\033[35m:shell>>\033[0m '))
 			if command in operations.keys():
 				operations[command](newpid)
 			else:
 				print(f'\033[1mUnrecognized Command \033[33m{command}\033[0m')
-			
+			# TODO: Check if rsp matches any breakpoints!
+			RSP = tracelib.get_rsp(newpid)
+			for breakpt in breakpoints:
+				if breakpt == hex(RSP):
+					print(f'[Δ:: Hit Breakpoint {hex(RSP)}]')
+					tracelib.pause_pid(newpid)
+
+def main():
+	
+	# check args
+	target = Command()
+	program, args = check_args()
+	target.file = bytes(program,'ascii')
+	target.args = args
+	
+	# Disassemble the program before launching it, 
+	# might be helpful if people want to set breakpoints, explore code, etc
+	dump = disassemble(program, False)
+	# Define the possible commands in the debugger shell
+	bugger_ops = {'c': tracelib.continue_pid,'continue':tracelib.continue_pid,
+				  'stepi': tracelib.step,
+				  'registers': tracelib.show_registers,
+				  'next': step_through_syscall,
+				  'help': show_help,
+				  'stack-view': explore_stack,
+				  'add-break': add_break_point,
+				  'read-mem': read_process_memory,
+				  'restart': restart_process,
+				  'q': exit,'quit': exit}
+	# Run The Debugger 
+	run_debugger(bugger_ops, dump, target)
 			
 
 
