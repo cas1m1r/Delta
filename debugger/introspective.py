@@ -117,6 +117,8 @@ def show_help(pid):
 	print('- [read-mem] Read memory at address')
 	print('- [stack-view] Try to read stack memory')
 	print('- [add-break] Add breakpoint at hex address')
+	print('- [objdump] display disassembly')
+	print('- [clear] refresh terminal')
 	print('- [restart] End process and restart it')
 	print('- [help] Show this menue')
 	print('- [q] Quit')
@@ -132,6 +134,9 @@ def explore_stack(pid):
 def modify_heap(pid, offset):
 	# open memfile 
 	memfile = f'/proc/{pid}/mem'
+
+def clear_screen(pid):
+	os.system('clear')
 
 def run_debugger(operations, objdump, target_program):
 	newpid = os.fork()
@@ -162,8 +167,31 @@ def run_debugger(operations, objdump, target_program):
 				query = subprocess.Popen(['/bin/sh','-c',f'echo $(pidof {target_program.file[2:].decode()})'])
 				debugee = int(query.wait(3))
 				print(f'[Δ] Pausing {target_program.file} for user control')
-			command = str(input('\033[1mΔ\033[35m:shell>>\033[0m '))
-			if command in operations.keys():
+			# Read Command From User Shell
+			user_command = str(input('\033[1mΔ\033[35m:shell>>\033[0m '))
+			command = user_command.split(' ')[0]
+
+			# Parse the Objdump command (separate from others)
+			if command == 'objdump':
+				# display a range? Or function listings?
+				# objdump 0xA 0xB shows disass from 0xA-0xB
+				if len(user_command.split(' '))>=2:
+					offset = int(user_command.split(' ')[1],0)
+					ending = int(user_command.split(' ')[2],0)
+					label = 'DISASSEMBLY'
+					# for fn, offset in objdump['functions'].items():
+					# 	if objdump['functions'][fn] == offset:
+					# 		label = fn
+					# 		break
+					print(f'\033[1m\033[32m[Δ:: DISPLAYING {label} {hex(offset)}:{hex(ending)}]\033[0m')
+					see_asm_range(objdump, offset,ending,True)
+				else:
+					print('[FUNCTIONS:]')
+					for fcn in objdump['functions'].keys():
+						print(f'{hex(objdump["functions"][fcn])} \t\t{fcn}')
+					
+			# Otherwise it should be one of the standard form commands
+			elif command in operations.keys():
 				operations[command](newpid)
 			else:
 				print(f'\033[1mUnrecognized Command \033[33m{command}\033[0m')
@@ -195,6 +223,7 @@ def main():
 				  'add-break': add_break_point,
 				  'read-mem': read_process_memory,
 				  'restart': restart_process,
+				  'clear': clear_screen,
 				  'q': exit,'quit': exit}
 	# Run The Debugger 
 	run_debugger(bugger_ops, dump, target)
